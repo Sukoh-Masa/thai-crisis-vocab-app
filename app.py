@@ -16,11 +16,10 @@ except Exception:
     st.error("Gemini APIキーがSecretsに設定されていません。")
     st.stop()
 
-# --- 3. アプリのステート管理（バグ修正ポイント） ---
+# --- 3. アプリのステート管理（最もシンプルな構造に修正） ---
 if "day" not in st.session_state:
     st.session_state.day = 1
 
-# 各Dayの単語データを保存する辞書履歴を用意
 if "word_history" not in st.session_state:
     st.session_state.word_history = {}
 
@@ -33,7 +32,6 @@ def generate_words_via_ai(day):
     else:
         level_desc = "上級（BCP、事業継続、リスク軽減、地政学リスク、サプライチェーン寸断など、危機管理コンサルティングの専門的な語彙）"
 
-    # 過去に生成した単語を重複させないためのヒントをプロンプトに含める
     past_words = []
     for d, data in st.session_state.word_history.items():
         if data and "words" in data:
@@ -44,7 +42,7 @@ def generate_words_via_ai(day):
 
     prompt = f"""
     あなたはタイの危機管理コンサルティング会社で働く優秀なAIアシスタントです。
-    日本人マーケターが社内や実敏で活用するための「タイ語の単語」を2つ厳選し、以下のJSONフォーマットで出力してください。
+    日本人マーケターが社内や実務で活用するための「タイ語の単語」を2つ厳選し、以下のJSONフォーマットで出力してください。
 
     【条件】
     - 現在の学習状況: Day {day} （難易度目安: {level_desc}）
@@ -93,7 +91,6 @@ def generate_words_via_ai(day):
 # --- 5. データの制御ロジック ---
 current_day = st.session_state.day
 
-# 現在のDayのデータがまだ履歴にない場合のみ、新規でAI生成を行う
 if current_day not in st.session_state.word_history:
     with st.spinner(f"Day {current_day} の新しい単語をAIが生成中..."):
         generated = generate_words_via_ai(current_day)
@@ -103,7 +100,7 @@ if current_day not in st.session_state.word_history:
 current_words_data = st.session_state.word_history.get(current_day)
 
 # --- 6. 画面の描画 ---
-st.title("🇹🇭 AI駆動型：タイ語 危機管理単語帳")
+st.title("🇹🇭 AIタイ語 危機管理単語帳")
 st.write("---")
 
 if current_words_data and "words" in current_words_data:
@@ -119,7 +116,7 @@ if current_words_data and "words" in current_words_data:
     st.write("---")
 
     for i, w_info in enumerate(current_words_data["words"]):
-        st.markdown(f"### 単語 {i+1}: <span style='color:#ff4b4b; font-size:32px;'>{w_info.get('word', '')}</span>", unsafe_allow_html=True)
+        st.markdown(f"### 単語 {i+1}: <span style='color:#ff4b4b; font-size:28px;'>{w_info.get('word', '')}</span>", unsafe_allow_html=True)
         st.write(f"**発音:** {w_info.get('pronunciation', '')}")
         st.write(f"**意味:** {w_info.get('meaning', '')}")
         
@@ -138,20 +135,18 @@ if current_words_data and "words" in current_words_data:
         
         st.write("---")
 
-    # ナビゲーションボタン（ここでの状態遷移を確実にしました）
+    # ナビゲーションボタン（エラーの原因になりやすい関数を排除）
     col1, col2 = st.columns(2)
     with col1:
         if current_day > 1:
             if st.button("⬅️ 前の日の単語へ"):
                 st.session_state.day -= 1
-                st.invalidate_pages() if hasattr(st, "invalidate_pages") else None
-                st.rerun()
+                st.initial_rerun() if hasattr(st, "initial_rerun") else st.rerun()
     with col2:
         if st.button("次の日の単語を生成 ➡️"):
             st.session_state.day += 1
-            st.invalidate_pages() if hasattr(st, "invalidate_pages") else None
-            st.rerun()
+            st.initial_rerun() if hasattr(st, "initial_rerun") else st.rerun()
 else:
     st.warning("単語の読み込みに失敗しました。ボタンを押して再試行してください。")
     if st.button("再試行"):
-        st.rerun()
+        st.initial_rerun() if hasattr(st, "initial_rerun") else st.rerun()
