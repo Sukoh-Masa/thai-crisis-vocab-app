@@ -1,135 +1,136 @@
 import streamlit as st
 from gtts import gTTS
 import os
+import json
+from google import genai
+from google.genai import types
 
 # --- 1. ページの設定 ---
-st.set_page_config(page_title="タイ語 危機管理単語帳", page_icon="🇹🇭", layout="centered")
+st.set_page_config(page_title="AIタイ語 危機管理単語帳", page_icon="🇹🇭", layout="centered")
 
-# --- 2. データの準備（モックデータ：徐々に難易度が上がるイメージ） ---
-# 本来はデータベースやAPIから取得しますが、まずはアプリ内に定義します。
-VOCAB_DATA = {
-    1: {
-        "level_name": "Level 1: 基礎（オフィス・現場の基本）",
-        "words": [
-            {
-                "word": "แจ้ง",
-                "pronunciation": "cɛ̂ɛŋ (チェーン)",
-                "meaning": "報告する、知らせる、通知する",
-                "examples": [
-                    {"th": "กรุณาแจ้งให้ทราบทันทีเมื่อมีปัญหา", "jp": "問題が発生した際は、すぐに報告してください。"},
-                    {"th": "บริษัทจะแจ้งกำหนดการประชุมให้ทราบอีกครั้ง", "jp": "会社は会議のスケジュールを再度通知します。"}
-                ]
-            },
-            {
-                "word": "ปลอดภัย",
-                "pronunciation": "plɔ̀ɔt-paj (プロอดパイ)",
-                "meaning": "安全な、安全である",
-                "examples": [
-                    {"th": "ความปลอดภัยในการทำงานต้องมาเป็นอันดับแรก", "jp": "作業における安全が第一でなければなりません。"},
-                    {"th": "ตรวจสอบให้แน่ใจว่าพื้นที่นี้ปลอดภัยแล้ว", "jp": "このエリアがすでに安全であることを確認してください。"}
-                ]
-            }
-        ]
-    },
-    2: {
-        "level_name": "Level 2: 中級（トラブル対応・労務）",
-        "words": [
-            {
-                "word": "มาตรการ",
-                "pronunciation": "mâat-tra-kaan (マートラカーン)",
-                "meaning": "対策、措置、基準",
-                "examples": [
-                    {"th": "บริษัทกำหนดมาตรการป้องกันข้อมูลรั่วไหลอย่างเข้มงวด", "jp": "会社は、情報漏洩を防止するための厳格な対策を定めています。"},
-                    {"th": "โรงงานต้องปฏิบัติตามมาตรการความปลอดภัยอย่างเคร่งครัด", "jp": "工場は安全措置を厳格に遵守しなければなりません。"}
-                ]
-            },
-            {
-                "word": "ประท้วง",
-                "pronunciation": "pra-thúaŋ (プラトゥアン)",
-                "meaning": "抗議する、ストライキをする",
-                "examples": [
-                    {"th": "พนักงานโรงงานนัดประท้วงเพื่อเรียกร้องสวัสดิการเพิ่ม", "jp": "工場の従業員は、福利厚生の改善を求めてストライキを予定しています。"},
-                    {"th": "เราต้องรีบเจรจาก่อนที่การประท้วงจะบานปลาย", "jp": "抗議行動が拡大する前に、私たちは急いで交渉しなければなりません。"}
-                ]
-            }
-        ]
-    },
-    3: {
-        "level_name": "Level 3: 上級（危機管理・BCP専門語彙）",
-        "words": [
-            {
-                "word": "ความต่อเนื่องทางธุรกิจ",
-                "pronunciation": "khwaam tɔ̂ɔ-nʉ̂aŋ thaaŋ thú-rá-kìt",
-                "meaning": "事業継続（Business Continuity）",
-                "examples": [
-                    {"th": "การวางแผนความต่อเนื่องทางธุรกิจเป็นสิ่งสำคัญสำหรับองค์กร", "jp": "事業継続計画（BCP）の策定は、組織にとって極めて重要です。"},
-                    {"th": "เราต้องรักษาความต่อเนื่องทางธุรกิจแม้ในภาวะวิกฤต", "jp": "私たちは危機下であっても、事業継続を維持しなければなりません。"}
-                ]
-            },
-            {
-                "word": "บรรเทาความเสียหาย",
-                "pronunciation": "ban-thaw khwaam sǐaj-hǎaj",
-                "meaning": "被害を軽減する、緩和する（Mitigation）",
-                "examples": [
-                    {"th": "มาตรการนี้จะช่วยบรรเทาความเสียหายจากอุทกภัยได้", "jp": "この対策は、洪水による被害を軽減するのに役立ちます。"},
-                    {"th": "เราต้องเตรียมพร้อมเพื่อบรรเทาความเสียหายที่อาจจะเกิดขึ้น", "jp": "発生する可能性のある被害を軽減するために、私たちは準備をしておかねばなりません。"}
-                ]
-            }
-        ]
-    }
-}
+# --- 2. Gemini APIの初期化 ---
+# StreamlitのSecretsから安全にAPIキーを読み込みます
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+    client = genai.Client(api_key=api_key)
+except Exception:
+    st.error("Gemini APIキーがSecretsに設定されていません。")
+    st.stop()
 
 # --- 3. アプリのステート管理 ---
-# 何日目（どのレベル）を学習しているかを保持します
 if "day" not in st.session_state:
     st.session_state.day = 1
+if "current_words" not in st.session_state:
+    st.session_state.current_words = None
 
-current_day = st.session_state.day
+# --- 4. AIに単語を生成させる関数 ---
+def generate_words_via_ai(day):
+    # 難易度の目安を決定
+    if day <= 3:
+        level_desc = "初級（オフィスや工場の現場で毎日使う基本的な労務・安全・指示の単語）"
+    elif day <= 7:
+        level_desc = "中級（トラブル対応、抗議行動、規制、役所や警察との連携などで使う実務的な単語）"
+    else:
+        level_desc = "上級（BCP、事業継続、リスク軽減、地政学リスクなど、危機管理コンサルティングの専門的な語彙）"
 
-# --- 4. 画面の描画 ---
-st.title("🇹🇭 タイ語 危機管理単語学習アプリ")
-st.subheader(f"Day {current_day} の学習内容")
+    prompt = f"""
+    あなたはタイの危機管理コンサルティング会社で働く優秀なAIアシスタントです。
+    日本人マーケターが社内や実務で活用するための「タイ語の単語」を2つ厳選し、以下のJSONフォーマットで出力してください。
 
-if current_day in VOCAB_DATA:
-    day_data = VOCAB_DATA[current_day]
-    st.caption(f"現在の難易度: {day_data['level_name']}")
+    【条件】
+    - 現在の学習状況: Day {day} （難易度目安: {level_desc}）
+    - 各単語に対して、ビジネスや危機管理の現場（特に日系企業の経営層や工場マネージャーとのやり取り）を想定した実用的な例文を「必ず2文ずつ」作成してください。
+    - 出力は必ず指定されたJSON形式のみとし、前後の説明テキストは一切含めないでください。
+
+    【出力JSONフォーマット】
+    {{
+      "words": [
+        {{
+          "word": "タイ語の単語（例：แจ้ง）",
+          "pronunciation": "発音記号やカタカナ読み（例：cɛ̂ɛŋ / チェーン）",
+          "meaning": "日本語の意味（例：報告する、通知する）",
+          "examples": [
+            {{"th": "タイ語の例文1", "jp": "日本語訳1"}},
+            {{"th": "タイ語の例文2", "jp": "日本語訳2"}}
+          ]
+        }},
+        ...（合計2単語分）...
+      ]
+    }}
+    """
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        # JSONをパースして辞書型として返す
+        return json.loads(response.text)
+    except Exception as e:
+        st.error(f"AIの生成中にエラーが発生しました: {e}")
+        return None
+
+# --- 5. 画面の描画 ---
+st.title("🇹🇭 AI駆動型：タイ語 危機管理単語帳")
+st.write("ボタンを押すと、Geminiが現在のレベルに合わせた実務タイ語を自動生成します。")
+st.write("---")
+
+# 初回、または「次の日」に進んだときに、まだその日のデータがなければ生成
+if st.session_state.current_words is None:
+    with st.spinner(f"Day {st.session_state.day} の単語をAIが生成中..."):
+        st.session_state.current_words = generate_words_via_ai(st.session_state.day)
+
+# 生成されたデータの表示
+if st.session_state.current_words and "words" in st.session_state.current_words:
+    st.subheader(f"📅 Day {st.session_state.day} の学習内容")
+    
+    # 難易度の簡易表示
+    if st.session_state.day <= 3:
+        st.caption("現在の難易度: 🟢 初級（現場・オフィスの基本）")
+    elif st.session_state.day <= 7:
+        st.caption("現在の難易度: 🟡 中級（トラブル対応・労務管理）")
+    else:
+        st.caption("現在の難易度: 🔴 上級（危機管理・BCP専門語彙）")
+
     st.write("---")
 
-    # 2つの単語をループで表示
-    for i, w_info in enumerate(day_data["words"]):
-        st.markdown(f"### 単語 {i+1}: <span style='color:#ff4b4b; font-size:32px;'>{w_info['word']}</span>", unsafe_allow_html=True)
-        st.write(f"**発音:** {w_info['pronunciation']}")
-        st.write(f"**意味:** {w_info['meaning']}")
+    for i, w_info in enumerate(st.session_state.current_words["words"]):
+        st.markdown(f"### 単語 {i+1}: <span style='color:#ff4b4b; font-size:32px;'>{w_info.get('word', '')}</span>", unsafe_allow_html=True)
+        st.write(f"**発音:** {w_info.get('pronunciation', '')}")
+        st.write(f"**意味:** {w_info.get('meaning', '')}")
         
-        # 音声生成ボタン
-        if st.button(f"🔊 音声を聴く ({w_info['word']})", key=f"audio_{current_day}_{i}"):
+        # 音声再生
+        word_text = w_info.get('word', '')
+        if word_text and st.button(f"🔊 音声を聴く ({word_text})", key=f"audio_{st.session_state.day}_{i}"):
             with st.spinner("音声を生成中..."):
-                tts = gTTS(text=w_info["word"], lang='th')
-                filename = f"speech_{current_day}_{i}.mp3"
+                tts = gTTS(text=word_text, lang='th')
+                filename = f"speech_{st.session_state.day}_{i}.mp3"
                 tts.save(filename)
                 st.audio(filename, format="audio/mp3")
-                # 使用後にファイルを削除したい場合は os.remove(filename) を検討
 
-        st.markdown("#### 📝 例文")
-        for ex in w_info["examples"]:
-            st.info(f"**泰:** {ex['th']}\n\n**日:** {ex['jp']}")
+        st.markdown("#### 📝 実務例文")
+        for ex in w_info.get("examples", []):
+            st.info(f"**泰:** {ex.get('th', '')}\n\n**日:** {ex.get('jp', '')}")
         
         st.write("---")
 
     # ナビゲーションボタン
     col1, col2 = st.columns(2)
     with col1:
-        if current_day > 1:
+        if st.session_state.day > 1:
             if st.button("⬅️ 前の日の単語へ"):
                 st.session_state.day -= 1
+                st.session_state.current_words = None  # データをクリアして再生成
                 st.rerun()
     with col2:
-        if current_day < len(VOCAB_DATA):
-            if st.button("次の日の単語へ ➡️"):
-                st.session_state.day += 1
-                st.rerun()
-        else:
-            st.success("🎉 現在登録されているすべてのステージをクリアしました！")
-
+        if st.button("次の日の単語を生成 ➡️"):
+            st.session_state.day += 1
+            st.session_state.current_words = None  # データをクリアして再生成
+            st.rerun()
 else:
-    st.error("データが見つかりません。")
+    st.warning("単語の読み込みに失敗しました。もう一度お試しください。")
+    if st.button("再試行"):
+        st.rerun()
