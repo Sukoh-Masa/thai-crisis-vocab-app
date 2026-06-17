@@ -38,7 +38,7 @@ def generate_words_via_ai(day):
             for w in data["words"]:
                 past_words.append(w.get("word", ""))
     
-    exclusion_text = f"ただし、過去に生成した以下の単語は絶対に除外してください：{', '.join(past_words)}" if past_words else ""
+    exclusion_text = f"ただし、过去に生成した以下の単語は絶対に除外してください：{', '.join(past_words)}" if past_words else ""
 
     prompt = f"""
     あなたはタイの危機管理コンサルティング会社で働く優秀なAIアシスタントです。
@@ -136,21 +136,21 @@ if current_words_data and "words" in current_words_data:
             original_th = ex.get('th', '')
             jp_text = ex.get('jp', '')
             
-            # 【ポイント】例文中のターゲット単語をオレンジ色（#ffaa00）の太字に変形
+            # 【変更点】不要なアスタリスクを取り除き、色を濃い赤（#C00000）にしてフォントサイズを最適化
             if target_word and target_word in original_th:
                 highlighted_th = original_th.replace(
                     target_word, 
-                    f"<b style='color:#ffaa00; font-size:20px;'>{target_word}</b>"
+                    f"<span style='color:#C00000; font-weight:bold; font-size:22px;'>{target_word}</span>"
                 )
             else:
                 highlighted_th = original_th
 
-            # HTML表示用のコンテナボックスを作成
+            # HTML表示用のコンテナボックス
             st.markdown(
                 f"""
-                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ff4b4b;">
-                    <p style="margin: 0 0 8px 0; color: #111111; font-size: 18px; line-height: 1.6;"><strong>泰:</strong> {highlighted_th}</p>
-                    <p style="margin: 0; color: #555555; font-size: 14px;"><strong>日:</strong> {jp_text}</p>
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <p style="margin: 0 0 8px 0; color: #111111; font-size: 18px; line-height: 1.7;"><strong>泰:</strong> {highlighted_th}</p>
+                    <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.5;"><strong>日:</strong> {jp_text}</p>
                 </div>
                 """, 
                 unsafe_allow_html=True
