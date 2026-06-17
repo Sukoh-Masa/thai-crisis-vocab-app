@@ -38,8 +38,9 @@ def generate_words_via_ai(day):
             for w in data["words"]:
                 past_words.append(w.get("word", ""))
     
-    exclusion_text = f"ただし、过去に生成した以下の単語は絶対に除外してください：{', '.join(past_words)}" if past_words else ""
+    exclusion_text = f"ただし、過去に生成した以下の単語は絶対に除外してください：{', '.join(past_words)}" if past_words else ""
 
+    # 【重要】プロンプトをアップデートし、日本語訳の該当箇所に指定タグを埋め込むよう指示
     prompt = f"""
     あなたはタイの危機管理コンサルティング会社で働く優秀なAIアシスタントです。
     日本人マーケターが社内や実務で活用するための「タイ語の単語」を2つ厳選し、以下のJSONフォーマットで出力してください。
@@ -49,6 +50,8 @@ def generate_words_via_ai(day):
     - {exclusion_text}
     - 各単語に対して、ビジネスや危機管理の現場（特に日系企業の経営層や工場マネージャーとのやり取り）を想定した実用的な例文を「必ず2文ずつ」作成してください。
     - 例文の中には、選定した「タイ語の単語」そのものを必ず正確に含めて作成してください。
+    - 日本語訳（jp）の中の、ターゲット単語の意味に該当するキーワード（例：報告する、安全、ストライキなど）の前後を必ず [HL] と [/HL] で囲んでください。
+      （例："jp": "問題が発生した際は、すぐに[HL]報告して[/HL]ください。"）
     - 出力は必ず指定されたJSON形式のみとし、前後の説明テキストは一切含めないでください。
 
     【出力JSONフォーマット】
@@ -59,8 +62,8 @@ def generate_words_via_ai(day):
           "pronunciation": "発音記号やカタカナ読み",
           "meaning": "日本語の意味",
           "examples": [
-            {{"th": "タイ語の例文1", "jp": "日本語訳1"}},
-            {{"th": "タイ語の例文2", "jp": "日本語訳2"}}
+            {{"th": "タイ語の例文1", "jp": "日本語訳1（該当ワードを[HL]と[/HL]で囲む）"}},
+            {{"th": "タイ語の例文2", "jp": "日本語訳2（該当ワードを[HL]と[/HL]で囲む）"}}
           ]
         }},
         {{
@@ -68,8 +71,8 @@ def generate_words_via_ai(day):
           "pronunciation": "発音記号やカタカナ読み",
           "meaning": "日本語の意味",
           "examples": [
-            {{"th": "タイ語の例文1", "jp": "日本語訳1"}},
-            {{"th": "タイ語の例文2", "jp": "日本語訳2"}}
+            {{"th": "タイ語の例文1", "jp": "日本語訳1（該当ワードを[HL]と[/HL]で囲む）"}},
+            {{"th": "タイ語の例文2", "jp": "日本語訳2（該当ワードを[HL]と[/HL]で囲む）"}}
           ]
         }}
       ]
@@ -134,9 +137,9 @@ if current_words_data and "words" in current_words_data:
         st.markdown("#### 📝 実務例文")
         for ex_idx, ex in enumerate(w_info.get("examples", [])):
             original_th = ex.get('th', '')
-            jp_text = ex.get('jp', '')
+            original_jp = ex.get('jp', '')
             
-            # 【変更点】不要なアスタリスクを取り除き、色を濃い赤（#C00000）にしてフォントサイズを最適化
+            # 【タイ語】ターゲット単語を濃い赤（#C00000）の太字に変形
             if target_word and target_word in original_th:
                 highlighted_th = original_th.replace(
                     target_word, 
@@ -145,12 +148,19 @@ if current_words_data and "words" in current_words_data:
             else:
                 highlighted_th = original_th
 
+            # 【日本語】AIが付けてくれた [HL] タグを、同じ濃い赤（#C00000）の太字に置換
+            highlighted_jp = original_jp.replace(
+                "[HL]", f"<span style='color:#C00000; font-weight:bold; font-size:17px;'>"
+            ).replace(
+                "[/HL]", "</span>"
+            )
+
             # HTML表示用のコンテナボックス
             st.markdown(
                 f"""
                 <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <p style="margin: 0 0 8px 0; color: #111111; font-size: 18px; line-height: 1.7;"><strong>泰:</strong> {highlighted_th}</p>
-                    <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.5;"><strong>日:</strong> {jp_text}</p>
+                    <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.5;"><strong>日:</strong> {highlighted_jp}</p>
                 </div>
                 """, 
                 unsafe_allow_html=True
