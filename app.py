@@ -16,7 +16,7 @@ except Exception:
     st.error("Gemini APIキーがSecretsに設定されていません。")
     st.stop()
 
-# --- 3. アプリのステート管理（最もシンプルな構造に修正） ---
+# --- 3. アプリのステート管理 ---
 if "day" not in st.session_state:
     st.session_state.day = 1
 
@@ -48,6 +48,7 @@ def generate_words_via_ai(day):
     - 現在の学習状況: Day {day} （難易度目安: {level_desc}）
     - {exclusion_text}
     - 各単語に対して、ビジネスや危機管理の現場（特に日系企業の経営層や工場マネージャーとのやり取り）を想定した実用的な例文を「必ず2文ずつ」作成してください。
+    - 例文の中には、選定した「タイ語の単語」そのものを必ず正確に含めて作成してください。
     - 出力は必ず指定されたJSON形式のみとし、前後の説明テキストは一切含めないでください。
 
     【出力JSONフォーマット】
@@ -116,26 +117,48 @@ if current_words_data and "words" in current_words_data:
     st.write("---")
 
     for i, w_info in enumerate(current_words_data["words"]):
-        st.markdown(f"### 単語 {i+1}: <span style='color:#ff4b4b; font-size:28px;'>{w_info.get('word', '')}</span>", unsafe_allow_html=True)
+        target_word = w_info.get('word', '').strip()
+        
+        st.markdown(f"### 単語 {i+1}: <span style='color:#ff4b4b; font-size:28px;'>{target_word}</span>", unsafe_allow_html=True)
         st.write(f"**発音:** {w_info.get('pronunciation', '')}")
         st.write(f"**意味:** {w_info.get('meaning', '')}")
         
         # 音声再生
-        word_text = w_info.get('word', '')
-        if word_text and st.button(f"🔊 音声を聴く ({word_text})", key=f"audio_{current_day}_{i}"):
+        if target_word and st.button(f"🔊 音声を聴く ({target_word})", key=f"audio_{current_day}_{i}"):
             with st.spinner("音声を生成中..."):
-                tts = gTTS(text=word_text, lang='th')
+                tts = gTTS(text=target_word, lang='th')
                 filename = f"speech_{current_day}_{i}.mp3"
                 tts.save(filename)
                 st.audio(filename, format="audio/mp3")
 
         st.markdown("#### 📝 実務例文")
-        for ex in w_info.get("examples", []):
-            st.info(f"**泰:** {ex.get('th', '')}\n\n**日:** {ex.get('jp', '')}")
+        for ex_idx, ex in enumerate(w_info.get("examples", [])):
+            original_th = ex.get('th', '')
+            jp_text = ex.get('jp', '')
+            
+            # 【ポイント】例文中のターゲット単語をオレンジ色（#ffaa00）の太字に変形
+            if target_word and target_word in original_th:
+                highlighted_th = original_th.replace(
+                    target_word, 
+                    f"<b style='color:#ffaa00; font-size:20px;'>{target_word}</b>"
+                )
+            else:
+                highlighted_th = original_th
+
+            # HTML表示用のコンテナボックスを作成
+            st.markdown(
+                f"""
+                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ff4b4b;">
+                    <p style="margin: 0 0 8px 0; color: #111111; font-size: 18px; line-height: 1.6;"><strong>泰:</strong> {highlighted_th}</p>
+                    <p style="margin: 0; color: #555555; font-size: 14px;"><strong>日:</strong> {jp_text}</p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
         
         st.write("---")
 
-    # ナビゲーションボタン（エラーの原因になりやすい関数を排除）
+    # ナビゲーションボタン
     col1, col2 = st.columns(2)
     with col1:
         if current_day > 1:
